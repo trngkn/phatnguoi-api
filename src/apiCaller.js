@@ -106,6 +106,7 @@ async function getViolationResults(instance, plate) {
  */
 export async function callAPI(plate, retries = CONFIG.MAX_RETRIES) {
   try {
+    console.log("Fetching traffic violations for plate:", plate);
     const instance = createAxiosInstance();
     const captcha = await getCaptcha(instance);
     // console.log(`Using captcha: ${captcha}`);

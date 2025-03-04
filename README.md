@@ -7,6 +7,7 @@ Dự án này cho phép nhanh chóng tạo server để tra cứu các vi phạm
 - Nhanh chóng tạo REST API để tra cứu vi phạm giao thông
 - Auto retry nếu xác minh captcha thất bại
 - Trích xuất và hiển thị thông tin vi phạm giao thông
+- Tạo bot Telegram để tra cứu vi phạm giao thông
 
 ## Cài đặt
 
@@ -30,6 +31,12 @@ Dự án này cho phép nhanh chóng tạo server để tra cứu các vi phạm
    npm install
    ```
 
+3. Tạo file `.env` và thêm token của bot Telegram:
+
+   ```env
+   TELEGRAM_BOT_TOKEN=YOUR_TELEGRAM_BOT_TOKEN
+   ```
+
 ## Sử dụng
 
 ### Chạy server REST API
@@ -46,11 +53,32 @@ Dự án này cho phép nhanh chóng tạo server để tra cứu các vi phạm
    curl "http://localhost:3000/api?licensePlate=30H47465"
    ```
 
+### Chạy bot Telegram
+
+1. Chạy bot:
+
+   ```sh
+   node src/telegramBot.js
+   ```
+
+2. Sử dụng lệnh `/tracuu` trong Telegram để tra cứu vi phạm giao thông:
+
+   ```sh
+   /tracuu 30H47465
+   ```
+
+3. Gõ biển số xe trực tiếp trong Telegram để tra cứu vi phạm giao thông:
+
+   ```sh
+   30H47465
+   ```
+
 ## Cấu trúc dự án
 
-- `apiCaller.js`: Chứa logic chính để tương tác với API tra cứu vi phạm giao thông.
-- `extractTrafficViolations.js`: Hàm tiện ích để trích xuất thông tin vi phạm giao thông từ phản hồi API.
+- `src/apiCaller.js`: Chứa logic chính để tương tác với API tra cứu vi phạm giao thông.
+- `src/extractTrafficViolations.js`: Hàm tiện ích để trích xuất thông tin vi phạm giao thông từ phản hồi API.
 - `server.js`: Thiết lập server Express.js với endpoint REST API.
+- `src/telegramBot.js`: Thiết lập bot Telegram để tra cứu vi phạm giao thông.
 
 ## Giấy phép
 
