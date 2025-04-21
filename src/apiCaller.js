@@ -66,6 +66,32 @@ async function getCaptcha(instance) {
 }
 
 /**
+ * Determines LoaiXe based on the license plate pattern
+ * @param {string} plate - License plate number
+ * @returns {string} LoaiXe value (1, 2, or 3)
+ */
+function determineLoaiXe(plate) {
+  // Normalize plate (remove spaces, convert to uppercase)
+  const normalizedPlate = plate.replace(/\s/g, '').toUpperCase();
+
+  // Regex patterns for each LoaiXe
+  const pattern1 = /^\d{2}[A-Z]\d{5}$/; // e.g., 48A25454
+  const pattern2 = /^\d{2}[A-Z]\d{6}$/; // e.g., 48A254546
+  const pattern3 = /^\d{2}MĐ\d{5}$/;    // e.g., 48MĐ25454
+
+  if (pattern1.test(normalizedPlate)) {
+    return '1';
+  } else if (pattern2.test(normalizedPlate)) {
+    return '2';
+  } else if (pattern3.test(normalizedPlate)) {
+    return '3';
+  } else {
+    console.warn(`Unknown plate format: ${plate}. Defaulting to LoaiXe=1`);
+    return '1';
+  }
+}
+
+/**
  * Submits form data with plate number and captcha
  * @param {Object} instance - Axios instance
  * @param {string} plate - License plate number
@@ -73,9 +99,10 @@ async function getCaptcha(instance) {
  * @returns {Promise<Object>} API response
  */
 async function postFormData(instance, plate, captcha) {
+  const loaiXe = determineLoaiXe(plate); // Dynamically determine LoaiXe
   const formData = qs.stringify({
     BienKS: plate,
-    Xe: "1",
+    Xe: loaiXe,
     captcha,
     ipClient: "9.9.9.91",
     cUrl: "1",
@@ -92,10 +119,11 @@ async function postFormData(instance, plate, captcha) {
  * Fetches traffic violation results
  * @param {Object} instance - Axios instance
  * @param {string} plate - License plate number
+ * @param {string} loaiXe - LoaiXe value
  * @returns {Promise<Object>} Results page response
  */
-async function getViolationResults(instance, plate) {
-  return instance.get(`${CONFIG.RESULTS_URL}?&LoaiXe=1&BienKiemSoat=${plate}`);
+async function getViolationResults(instance, plate, loaiXe) {
+  return instance.get(`${CONFIG.RESULTS_URL}?&LoaiXe=${loaiXe}&BienKiemSoat=${plate}`);
 }
 
 /**
@@ -129,7 +157,8 @@ export async function callAPI(plate, retries = CONFIG.MAX_RETRIES) {
       }
     }
 
-    const resultsResponse = await getViolationResults(instance, plate);
+    const loaiXe = determineLoaiXe(plate); // Determine LoaiXe for results
+    const resultsResponse = await getViolationResults(instance, plate, loaiXe);
     const violations = extractTrafficViolations(resultsResponse.data);
 
     return violations;
