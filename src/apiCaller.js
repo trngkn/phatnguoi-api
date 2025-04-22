@@ -75,9 +75,9 @@ function determineLoaiXe(plate) {
   const normalizedPlate = plate.replace(/\s/g, '').toUpperCase();
 
   // Regex patterns for each LoaiXe
-  const pattern1 = /^\d{2}[A-Z]\d{5}$/; // e.g., 48A25454
-  const pattern2 = /^\d{2}[A-Z]\d{6}$/; // e.g., 48A254546
-  const pattern3 = /^\d{2}MĐ\d{5}$/;    // e.g., 48MĐ25454
+  const pattern1 = /^\d{2}[A-Z]\d{5}$/;         // e.g., 48A25454
+  const pattern2 = /^(\d{2}[A-Z]\d{6}|\d{2}[A-Z]{2}\d{5})$/; // e.g., 48A254546 or 48AA25454
+  const pattern3 = /^(\d{2}MĐ\d{5}|\d{2}MĐ2\d{5})$/; // e.g., 48MĐ25454 or 48MĐ225454
 
   if (pattern1.test(normalizedPlate)) {
     return '1';
