@@ -23,10 +23,11 @@ app.get("/api", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 app.get("/api/vr", async (req, res) => {
   const { bienSo, soTem } = req.query;
-  if (!bienSo) {
-    return res.status(400).json({ error: "Thiếu tham số biển số" });
+  if (!bienSo || !soTem) {
+    return res.status(400).json({ error: "Thiếu tham số biển số hoặc số tem!" });
   }
   try {
     const result = await lookupVRWithRetry({ bienSo, soTem });
@@ -35,6 +36,11 @@ app.get("/api/vr", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+app.get("/", (req, res) => {
+  res.send("PhatNguoi API is running!");
+});
+
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
