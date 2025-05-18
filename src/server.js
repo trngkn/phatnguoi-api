@@ -1,6 +1,6 @@
 import express from "express";
 import { callAPI } from "./apiCaller.js";
-import { lookupVR } from "./vrApiCaller.js";
+import { lookupVRWithRetry } from "./vrApiCaller.js";
 
 const app = express();
 const port = 3000;
