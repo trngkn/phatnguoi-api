@@ -19,8 +19,11 @@ function extractVRInfo(html) {
     return { error: captchaError };
   }
 
-  // Lấy biển số
+  // Nếu không tìm thấy kết quả (không có biển số trong kết quả)
   const bienSo = $("#LblBinDangKy").text().replace(/^.*:/, "").trim();
+  if (!bienSo) {
+    return { error: "Không tìm thấy thông tin phương tiện. Kiểm tra lại biển số và số tem." };
+  }
 
   // THÔNG TIN CHUNG
   const nhanHieu = $("#txtNhanHieu").text().trim();
@@ -81,10 +84,11 @@ function extractVRInfo(html) {
 
 /**
  * Tra cứu thông tin phương tiện trên http://app.vr.org.vn/ptpublic/
+ * BẮT BUỘC có cả biển số và số tem.
  * Tự động vượt captcha, thử lại tối đa maxRetry lần nếu sai captcha.
  * @param {object} param0 
  * @param {string} param0.bienSo - Biển số xe, VD: "50H-674.72V"
- * @param {string} [param0.soTem] - Số tem (nếu cần)
+ * @param {string} param0.soTem - Số tem (bắt buộc, không được rỗng)
  * @param {number} [maxRetry] - Số lần thử tối đa (default 5)
  * @returns {Promise<object>} Thông tin phương tiện hoặc lỗi
  */
@@ -93,6 +97,10 @@ export async function lookupVRWithRetry({ bienSo, soTem }, maxRetry = 5) {
   const POST_URL = BASE_URL + "thongtinptpublic.aspx";
   const jar = new tough.CookieJar();
   const instance = wrapper(axios.create({ jar, withCredentials: true }));
+
+  if (!bienSo || !soTem) {
+    return { error: "Thiếu biển số hoặc số tem. Bạn cần nhập đầy đủ cả hai trường!" };
+  }
 
   let lastError = "";
   for (let attempt = 1; attempt <= maxRetry; attempt++) {
@@ -114,7 +122,7 @@ export async function lookupVRWithRetry({ bienSo, soTem }, maxRetry = 5) {
       const formData = {
         ...hidden,
         txtBienDK: bienSo,
-        TxtSoTem: soTem || "",
+        TxtSoTem: soTem,
         txtCaptcha: captcha,
         CmdTraCuu: "Tra cứu",
       };
