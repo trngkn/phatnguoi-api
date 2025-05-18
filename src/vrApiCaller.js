@@ -1,147 +1,120 @@
 import axios from "axios";
-import { wrapper } from "axios-cookiejar-support";
 import tough from "tough-cookie";
+import { wrapper } from "axios-cookiejar-support";
 import Tesseract from "tesseract.js";
 import * as cheerio from "cheerio";
 import qs from "qs";
 
-/**
- * Trích xuất thông tin phương tiện từ HTML trả về của VR.org.vn
- * @param {string} html
- * @returns {object}
- */
-function extractVRInfo(html) {
-  const $ = cheerio.load(html);
-
-  // Nếu có thông báo captcha sai
-  const captchaError = $("#lblErrMsg").text().trim();
-  if (captchaError) {
-    return { error: captchaError };
-  }
-
-  // Nếu không tìm thấy kết quả (không có biển số trong kết quả)
-  const bienSo = $("#LblBinDangKy").text().replace(/^.*:/, "").trim();
-  if (!bienSo) {
-    return { error: "Không tìm thấy thông tin phương tiện. Kiểm tra lại biển số và số tem." };
-  }
-
-  // THÔNG TIN CHUNG
-  const nhanHieu = $("#txtNhanHieu").text().trim();
-  const soKhung = $("#txtSoKhung").text().trim();
-  const loaiPT = $("#txtLoaiPT").text().trim();
-  const soMay = $("#txtSoMay").text().trim();
-
-  // THÔNG SỐ KỸ THUẬT
-  const kichThuocBao = $("#txtKichThuocBao").text().trim();
-  const kichThuocThung = $("#txtKichThuocThung").text().trim();
-  const tuTrong = $("#txtTuTrongTK").text().trim();
-  const taiTrongGT = $("#txtTaiTrongGT").text().trim();
-  const soCho = $("#txtSoCho").text().trim();
-  const trongLuongToanBo = $("#txtTrLgToanBoGT").text().trim();
-  const truc_chieuCoSo = $("#txtCdCsCtBx").text().trim();
-  const trongLuongMoocCP = $("#txtTrLgMoocCP").text().trim();
-
-  // LẦN KIỂM ĐỊNH GẦN NHẤT
-  const ngayKiemDinh = $("#txtNgayKD").text().trim();
-  const tramKiemDinh = $("#txtTramKD").text().trim();
-  const soTemGCN = $("#txtSoTemGCN").text().trim();
-  const hanHieuLucGCN = $("#txtHanKDToi").text().trim();
-
-  // LẦN NỘP PHÍ GẦN NHẤT
-  const ngayNopPhi = $("#txtNgayNop").text().trim();
-  const donViThuPhi = $("#txtDonVi").text().trim();
-  const soBienLai = $("#txtBL_ID").text().trim();
-  const phiNopDenHetNgay = $("#txtDenNgay").text().trim();
-
+// Hàm trích xuất hidden fields và các trường cần thiết
+async function getFormFields(instance, url) {
+  const res = await instance.get(url);
+  const $ = cheerio.load(res.data);
   return {
-    bienSo,
-    nhanHieu,
-    soKhung,
-    loaiPT,
-    soMay,
-    kichThuocBao,
-    kichThuocThung,
-    tuTrong,
-    taiTrongGT,
-    soCho,
-    trongLuongToanBo,
-    truc_chieuCoSo,
-    trongLuongMoocCP,
-    kiemDinh: {
-      ngayKiemDinh,
-      tramKiemDinh,
-      soTemGCN,
-      hanHieuLucGCN,
-    },
-    nopPhi: {
-      ngayNopPhi,
-      donViThuPhi,
-      soBienLai,
-      phiNopDenHetNgay,
-    },
+    __VIEWSTATE: $("input[name='__VIEWSTATE']").val(),
+    __VIEWSTATEGENERATOR: $("input[name='__VIEWSTATEGENERATOR']").val(),
+    __EVENTVALIDATION: $("input[name='__EVENTVALIDATION']").val()
   };
 }
 
-/**
- * Tra cứu thông tin phương tiện trên http://app.vr.org.vn/ptpublic/
- * BẮT BUỘC có cả biển số và số tem.
- * Tự động vượt captcha, thử lại tối đa maxRetry lần nếu sai captcha.
- * @param {object} param0 
- * @param {string} param0.bienSo - Biển số xe, VD: "50H-674.72V"
- * @param {string} param0.soTem - Số tem (bắt buộc, không được rỗng)
- * @param {number} [maxRetry] - Số lần thử tối đa (default 5)
- * @returns {Promise<object>} Thông tin phương tiện hoặc lỗi
- */
+// Hàm nhận diện captcha
+async function getCaptchaText(instance, url) {
+  const res = await instance.get(url, { responseType: "arraybuffer" });
+  const { data: { text } } = await Tesseract.recognize(res.data, "eng");
+  // Xử lý mã captcha về dạng chỉ chữ số, chữ cái in hoa (nếu cần)
+  return text.replace(/[^a-zA-Z0-9]/g, "").trim();
+}
+
+// Hàm trích xuất thông tin phương tiện từ HTML trả về
+function extractVRInfo(html) {
+  const $ = cheerio.load(html);
+
+  const error = $("#lblErrMsg").text().trim();
+  if (error) return { error };
+
+  const bienSo = $("#LblBinDangKy").text().replace(/^.*:/, "").trim();
+  if (!bienSo) return { error: "Không tìm thấy thông tin phương tiện." };
+
+  return {
+    bienSo,
+    nhanHieu: $("#txtNhanHieu").text().trim(),
+    soKhung: $("#txtSoKhung").text().trim(),
+    loaiPT: $("#txtLoaiPT").text().trim(),
+    soMay: $("#txtSoMay").text().trim(),
+    kichThuocBao: $("#txtKichThuocBao").text().trim(),
+    kichThuocThung: $("#txtKichThuocThung").text().trim(),
+    tuTrong: $("#txtTuTrongTK").text().trim(),
+    taiTrongGT: $("#txtTaiTrongGT").text().trim(),
+    soCho: $("#txtSoCho").text().trim(),
+    trongLuongToanBo: $("#txtTrLgToanBoGT").text().trim(),
+    truc_chieuCoSo: $("#txtCdCsCtBx").text().trim(),
+    trongLuongMoocCP: $("#txtTrLgMoocCP").text().trim(),
+    kiemDinh: {
+      ngayKiemDinh: $("#txtNgayKD").text().trim(),
+      tramKiemDinh: $("#txtTramKD").text().trim(),
+      soTemGCN: $("#txtSoTemGCN").text().trim(),
+      hanHieuLucGCN: $("#txtHanKDToi").text().trim()
+    },
+    nopPhi: {
+      ngayNopPhi: $("#txtNgayNop").text().trim(),
+      donViThuPhi: $("#txtDonVi").text().trim(),
+      soBienLai: $("#txtBL_ID").text().trim(),
+      phiNopDenHetNgay: $("#txtDenNgay").text().trim()
+    }
+  };
+}
+
+// Hàm chính: lookupVRWithRetry
 export async function lookupVRWithRetry({ bienSo, soTem }, maxRetry = 5) {
-  const BASE_URL = "http://app.vr.org.vn/ptpublic/";
-  const POST_URL = BASE_URL + "thongtinptpublic.aspx";
+  if (!bienSo || !soTem) {
+    return { error: "Bạn phải nhập đủ cả biển số và số tem!" };
+  }
+
+  const BASE = "http://app.vr.org.vn/ptpublic/";
+  const FORM_URL = BASE + "thongtinptpublic.aspx";
+  const CAPTCHA_URL = BASE + "Images/Captchacaptcha1400.jpg";
   const jar = new tough.CookieJar();
   const instance = wrapper(axios.create({ jar, withCredentials: true }));
 
-  if (!bienSo || !soTem) {
-    return { error: "Thiếu biển số hoặc số tem. Bạn cần nhập đầy đủ cả hai trường!" };
-  }
-
   let lastError = "";
-  for (let attempt = 1; attempt <= maxRetry; attempt++) {
+  for (let i = 0; i < maxRetry; i++) {
     try {
-      // 1. Lấy các hidden fields
-      const resForm = await instance.get(BASE_URL);
-      const $ = cheerio.load(resForm.data);
-      const hidden = {
-        __VIEWSTATE: $("#__VIEWSTATE").val(),
-        __VIEWSTATEGENERATOR: $("#__VIEWSTATEGENERATOR").val(),
-        __EVENTVALIDATION: $("#__EVENTVALIDATION").val(),
-      };
-      // 2. Lấy captcha
-      const captchaRes = await instance.get(BASE_URL + "Images/Captchacaptcha1400.jpg", { responseType: "arraybuffer" });
-      const result = await Tesseract.recognize(captchaRes.data, "eng");
-      const captcha = result.data.text.trim();
+      // 1. Lấy hidden fields
+      const fields = await getFormFields(instance, FORM_URL);
 
-      // 3. Gửi form POST
+      // 2. Lấy captcha và nhận diện
+      const captcha = await getCaptchaText(instance, CAPTCHA_URL);
+
+      // 3. Chuẩn bị data POST
       const formData = {
-        ...hidden,
+        ...fields,
         txtBienDK: bienSo,
         TxtSoTem: soTem,
         txtCaptcha: captcha,
-        CmdTraCuu: "Tra cứu",
+        CmdTraCuu: "Tra cứu"
       };
+
+      // 4. Gửi POST
       const res = await instance.post(
-        POST_URL,
+        FORM_URL,
         qs.stringify(formData),
-        { headers: { "Content-Type": "application/x-www-form-urlencoded", "Referer": BASE_URL } }
+        {
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Referer": FORM_URL
+          }
+        }
       );
 
-      // 4. Xử lý kết quả
+      // 5. Xử lý kết quả
       const info = extractVRInfo(res.data);
       if (info.error && /mã xác thực|captcha/i.test(info.error)) {
         lastError = info.error;
-        continue; // thử lại lần nữa
+        continue; // thử lại
       }
       return info;
     } catch (err) {
       lastError = err.message;
     }
   }
-  return { error: lastError || "Không thể vượt captcha sau nhiều lần thử." };
+  return { error: lastError || "Không thể vượt captcha hoặc tra cứu sau nhiều lần thử." };
 }
