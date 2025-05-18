@@ -14,21 +14,41 @@ function normalizeBienSo(bienSo) {
 
 // Hàm lấy hidden fields
 async function getFormFields(instance, url) {
-  const res = await instance.get(url);
+  const res = await instance.get(url, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "vi,en-US;q=0.9,en;q=0.8",
+      Connection: "keep-alive",
+    },
+  });
   const $ = cheerio.load(res.data);
   return {
     __VIEWSTATE: $("input[name='__VIEWSTATE']").val(),
     __VIEWSTATEGENERATOR: $("input[name='__VIEWSTATEGENERATOR']").val(),
-    __EVENTVALIDATION: $("input[name='__EVENTVALIDATION']").val()
+    __EVENTVALIDATION: $("input[name='__EVENTVALIDATION']").val(),
   };
 }
 
 // Hàm nhận diện captcha
 async function getCaptchaText(instance, url) {
-  const res = await instance.get(url, { responseType: "arraybuffer" });
+  const res = await instance.get(url, {
+    responseType: "arraybuffer",
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+      "Accept-Language": "vi,en-US;q=0.9,en;q=0.8",
+      Referer: "http://app.vr.org.vn/ptpublic/thongtinptpublic.aspx",
+      Connection: "keep-alive",
+    },
+  });
   const {
-    data: { text }
-  } = await Tesseract.recognize(res.data, "eng", { tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" });
+    data: { text },
+  } = await Tesseract.recognize(res.data, "eng", {
+    tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+  });
   return text.replace(/[^A-Z0-9]/g, "").trim();
 }
 
@@ -60,14 +80,14 @@ function extractVRInfo(html) {
       ngayKiemDinh: $("#txtNgayKD").text().trim(),
       tramKiemDinh: $("#txtTramKD").text().trim(),
       soTemGCN: $("#txtSoTemGCN").text().trim(),
-      hanHieuLucGCN: $("#txtHanKDToi").text().trim()
+      hanHieuLucGCN: $("#txtHanKDToi").text().trim(),
     },
     nopPhi: {
       ngayNopPhi: $("#txtNgayNop").text().trim(),
       donViThuPhi: $("#txtDonVi").text().trim(),
       soBienLai: $("#txtBL_ID").text().trim(),
-      phiNopDenHetNgay: $("#txtDenNgay").text().trim()
-    }
+      phiNopDenHetNgay: $("#txtDenNgay").text().trim(),
+    },
   };
 }
 
@@ -99,7 +119,7 @@ export async function lookupVRWithRetry({ bienSo, soTem }, maxRetry = 5) {
         txtBienDK: bienSoNormalized,
         TxtSoTem: soTem,
         txtCaptcha: captcha,
-        CmdTraCuu: "Tra cứu"
+        CmdTraCuu: "Tra cứu",
       };
 
       // 4. Gửi POST
@@ -109,12 +129,30 @@ export async function lookupVRWithRetry({ bienSo, soTem }, maxRetry = 5) {
         {
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
-            "Referer": FORM_URL
-          }
+            "Referer": FORM_URL,
+            "Origin": "http://app.vr.org.vn",
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            Accept:
+              "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "vi,en-US;q=0.9,en;q=0.8",
+            Connection: "keep-alive",
+          },
+          validateStatus: function (status) {
+            return true; // Không throw lỗi cho HTTP status >= 400
+          },
         }
       );
 
-      // 5. Xử lý kết quả
+      // 5. Nếu 404, log response để debug
+      if (res.status === 404) {
+        console.error("VR site trả về 404. Response data:", res.data);
+        lastError =
+          "VR website trả về 404. Có thể bị chặn IP hoặc thay đổi giao diện website.";
+        continue;
+      }
+
+      // 6. Xử lý kết quả
       const info = extractVRInfo(res.data);
       if (info.error && /mã xác thực|captcha/i.test(info.error)) {
         lastError = info.error;
@@ -122,11 +160,18 @@ export async function lookupVRWithRetry({ bienSo, soTem }, maxRetry = 5) {
       }
       return info;
     } catch (err) {
-      lastError = err.message;
+      if (err.response) {
+        console.error("Lỗi HTTP:", err.response.status, err.response.statusText);
+        console.error("Body:", err.response.data);
+        lastError = `Lỗi HTTP ${err.response.status}`;
+      } else {
+        lastError = err.message;
+      }
     }
   }
-  return { error: lastError || "Không thể vượt captcha hoặc tra cứu sau nhiều lần thử." };
+  return {
+    error:
+      lastError ||
+      "Không thể vượt captcha hoặc tra cứu sau nhiều lần thử. Có thể IP server đã bị chặn.",
+  };
 }
-
-// Export default cho import nhanh
-export { lookupVRWithRetry as lookupVR };
