@@ -1,10 +1,15 @@
 import axios from "axios";
+import { wrapper } from "axios-cookiejar-support";
+import tough from "tough-cookie";
 import Tesseract from "tesseract.js";
 import * as cheerio from "cheerio";
 import qs from "qs";
 
-// ... getInitialFormData và getCaptcha giữ nguyên như hướng dẫn trước
-
+/**
+ * Trích xuất thông tin phương tiện từ HTML trả về của VR.org.vn
+ * @param {string} html
+ * @returns {object}
+ */
 function extractVRInfo(html) {
   const $ = cheerio.load(html);
 
@@ -74,14 +79,25 @@ function extractVRInfo(html) {
   };
 }
 
-// Hàm lookup với retry vượt captcha
+/**
+ * Tra cứu thông tin phương tiện trên http://app.vr.org.vn/ptpublic/
+ * Tự động vượt captcha, thử lại tối đa maxRetry lần nếu sai captcha.
+ * @param {object} param0 
+ * @param {string} param0.bienSo - Biển số xe, VD: "50H-674.72V"
+ * @param {string} [param0.soTem] - Số tem (nếu cần)
+ * @param {number} [maxRetry] - Số lần thử tối đa (default 5)
+ * @returns {Promise<object>} Thông tin phương tiện hoặc lỗi
+ */
 export async function lookupVRWithRetry({ bienSo, soTem }, maxRetry = 5) {
   const BASE_URL = "http://app.vr.org.vn/ptpublic/";
+  const POST_URL = BASE_URL + "thongtinptpublic.aspx";
+  const jar = new tough.CookieJar();
+  const instance = wrapper(axios.create({ jar, withCredentials: true }));
+
   let lastError = "";
   for (let attempt = 1; attempt <= maxRetry; attempt++) {
     try {
       // 1. Lấy các hidden fields
-      const instance = axios.create({ withCredentials: true });
       const resForm = await instance.get(BASE_URL);
       const $ = cheerio.load(resForm.data);
       const hidden = {
@@ -103,9 +119,9 @@ export async function lookupVRWithRetry({ bienSo, soTem }, maxRetry = 5) {
         CmdTraCuu: "Tra cứu",
       };
       const res = await instance.post(
-        BASE_URL + "thongtinptpublic.aspx",
+        POST_URL,
         qs.stringify(formData),
-        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+        { headers: { "Content-Type": "application/x-www-form-urlencoded", "Referer": BASE_URL } }
       );
 
       // 4. Xử lý kết quả
@@ -119,6 +135,5 @@ export async function lookupVRWithRetry({ bienSo, soTem }, maxRetry = 5) {
       lastError = err.message;
     }
   }
-  // Nếu hết số lần thử vẫn không được
   return { error: lastError || "Không thể vượt captcha sau nhiều lần thử." };
 }
