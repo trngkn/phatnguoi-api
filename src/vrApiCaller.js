@@ -5,7 +5,14 @@ import Tesseract from "tesseract.js";
 import * as cheerio from "cheerio";
 import qs from "qs";
 
-// Hàm trích xuất hidden fields và các trường cần thiết
+// Chuẩn hóa biển số: loại bỏ dấu chấm, gạch ngang, khoảng trắng, in hoa
+function normalizeBienSo(bienSo) {
+  return String(bienSo)
+    .replace(/[.\-\s]/g, "")
+    .toUpperCase();
+}
+
+// Hàm lấy hidden fields
 async function getFormFields(instance, url) {
   const res = await instance.get(url);
   const $ = cheerio.load(res.data);
@@ -19,9 +26,10 @@ async function getFormFields(instance, url) {
 // Hàm nhận diện captcha
 async function getCaptchaText(instance, url) {
   const res = await instance.get(url, { responseType: "arraybuffer" });
-  const { data: { text } } = await Tesseract.recognize(res.data, "eng");
-  // Xử lý mã captcha về dạng chỉ chữ số, chữ cái in hoa (nếu cần)
-  return text.replace(/[^a-zA-Z0-9]/g, "").trim();
+  const {
+    data: { text }
+  } = await Tesseract.recognize(res.data, "eng", { tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" });
+  return text.replace(/[^A-Z0-9]/g, "").trim();
 }
 
 // Hàm trích xuất thông tin phương tiện từ HTML trả về
@@ -69,6 +77,7 @@ export async function lookupVRWithRetry({ bienSo, soTem }, maxRetry = 5) {
     return { error: "Bạn phải nhập đủ cả biển số và số tem!" };
   }
 
+  const bienSoNormalized = normalizeBienSo(bienSo);
   const BASE = "http://app.vr.org.vn/ptpublic/";
   const FORM_URL = BASE + "thongtinptpublic.aspx";
   const CAPTCHA_URL = BASE + "Images/Captchacaptcha1400.jpg";
@@ -87,7 +96,7 @@ export async function lookupVRWithRetry({ bienSo, soTem }, maxRetry = 5) {
       // 3. Chuẩn bị data POST
       const formData = {
         ...fields,
-        txtBienDK: bienSo,
+        txtBienDK: bienSoNormalized,
         TxtSoTem: soTem,
         txtCaptcha: captcha,
         CmdTraCuu: "Tra cứu"
@@ -118,3 +127,6 @@ export async function lookupVRWithRetry({ bienSo, soTem }, maxRetry = 5) {
   }
   return { error: lastError || "Không thể vượt captcha hoặc tra cứu sau nhiều lần thử." };
 }
+
+// Export default cho import nhanh
+export { lookupVRWithRetry as lookupVR };
