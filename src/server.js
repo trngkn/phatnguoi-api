@@ -23,7 +23,7 @@ app.get("/api", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-app.get("/api/vr", async (req, res) => {
+app.get("/vr", async (req, res) => {
   const { bienSo, soTem } = req.query;
   if (!bienSo) {
     return res.status(400).json({ error: "Thiếu tham số biển số" });
