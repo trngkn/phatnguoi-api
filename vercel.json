@@ -3,7 +3,7 @@
     "routes": [
       {
         "src": "/api(.*)",
-        "dest": "/src/server.js"
+        "dest": "/src/apiCaller.js"
       }
     ]
   }
